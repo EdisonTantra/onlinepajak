@@ -1,0 +1,25 @@
+env: dev
+service:
+  code: lemon
+  name: application to parsing
+  nickname: lemon-app
+  version: 0.0.1
+
+# protocols
+http:
+  address: localhost:8000
+  readTimeout: 5s
+  writeTimeout: 5s
+  readHeaderTimeout: 5s
+
+# data sources
+postgresql:
+  host: localhost #change into localhost if not docker
+  port: 5432
+  db: lemon
+  username: postgres
+  password: lemonpass
+  sslMode: false
+  maxOpenConn: 30
+  maxIdleConn: 15
+  maxIdleTime: 600s

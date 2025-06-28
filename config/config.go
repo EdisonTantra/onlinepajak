@@ -9,6 +9,7 @@ type Config struct {
 	ServerHTTP *ServerHTTP `json:"http"`
 	Postgres   *Postgresql `json:"postgresql"`
 	Telemetry  *Telemetry  `json:"telemetry"`
+	DJPClient  *DJPClient  `json:"djp"`
 }
 
 // Service represents the data structure for service general info in Apps.
@@ -50,4 +51,9 @@ type Postgresql struct {
 type Telemetry struct {
 	CollectorURL string `json:"collectorURL"`
 	SecureMode   bool   `json:"secureMode"`
+}
+
+// DJPClient represents the connection for DJPClient configuration.
+type DJPClient struct {
+	BaseURL string `json:"baseURL"`
 }

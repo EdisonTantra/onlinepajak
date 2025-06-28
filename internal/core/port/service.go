@@ -12,5 +12,5 @@ type UserService interface {
 }
 
 type ApplicationService interface {
-	Something()
+	EFakturValidation(ctx context.Context, req *domain.EFakturValidationRequest) (*domain.EFakturValidationResponse, error)
 }

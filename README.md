@@ -47,3 +47,9 @@ docker-compose down --volumes
 go test -v ./...
 ```
 
+## TODO 
+
+1. accept PDF or JPG request, currently 
+   you could hit the enpoint with empty file because have mock request
+2. parse pdf to golang struct
+3. more validations

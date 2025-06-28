@@ -23,3 +23,5 @@ postgresql:
   maxOpenConn: 30
   maxIdleConn: 15
   maxIdleTime: 600s
+djp:
+  baseURL: http://svc.efaktur.pajak.go.id

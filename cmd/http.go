@@ -5,6 +5,7 @@ import (
 	"github.com/EdisonTantra/lemonPajak/internal/core/cons"
 	svcApp "github.com/EdisonTantra/lemonPajak/internal/core/service/application"
 	svcUser "github.com/EdisonTantra/lemonPajak/internal/core/service/user"
+	"github.com/EdisonTantra/lemonPajak/internal/repository/externalapi/djp"
 	lemonHTTP "github.com/EdisonTantra/lemonPajak/internal/transport/http"
 	httpHandlerApp "github.com/EdisonTantra/lemonPajak/internal/transport/http/handlers/application"
 	httpHandlerUser "github.com/EdisonTantra/lemonPajak/internal/transport/http/handlers/user"
@@ -31,15 +32,15 @@ var httpCmd = &cobra.Command{
 			)
 		}
 
+		// api clients
+		djpClient := djp.New(cfg.DJPClient.BaseURL)
+
 		// register stores to repo
 		repoPsql.RegisterStore()
 
 		// services
 		userSvc := svcUser.New(repoPsql.GetUserStore())
-		appSvc := svcApp.New(
-			repoPsql.GetUserStore(),
-			repoPsql.GetAppStore(),
-		)
+		appSvc := svcApp.New(djpClient)
 
 		// handlers
 		handlerHTTPUser := httpHandlerUser.New(&httpHandlerUser.HandlerOpts{

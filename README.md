@@ -17,7 +17,7 @@ docker compose up
 2. Using Golang Binary
 
 ```bash
-docker compose up db
+docker compose up -d db
 
 # update postgresql host to `localhost` in config.yaml 
 go run main.go http
@@ -47,9 +47,13 @@ docker-compose down --volumes
 go test -v ./...
 ```
 
-## TODO 
+## TODO
 
-1. accept PDF or JPG request, currently 
-   you could hit the enpoint with empty file because have mock request
-2. parse pdf to golang struct
-3. more validations
+1. accept JPG extension
+2. QR Code Extraction
+3. validation with more clear requirements
+4. unittest
+5. testing with more sample input
+6. tracer
+7. telemetry
+8. remove psql

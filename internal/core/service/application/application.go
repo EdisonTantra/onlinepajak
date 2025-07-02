@@ -3,14 +3,16 @@ package application
 import (
 	"context"
 	"fmt"
+	"regexp"
+	"strconv"
+	"strings"
+	"time"
+
 	"github.com/EdisonTantra/lemonPajak/internal/core/cons"
 	"github.com/EdisonTantra/lemonPajak/internal/core/domain"
 	"github.com/EdisonTantra/lemonPajak/internal/core/port"
 	"github.com/EdisonTantra/lemonPajak/pkg/lib/logat"
 	"github.com/asaskevich/govalidator"
-	"regexp"
-	"strings"
-	"time"
 )
 
 var _ port.ApplicationService = (*Service)(nil)
@@ -29,14 +31,13 @@ func (s *Service) EFakturValidation(
 	ctx context.Context,
 	req *domain.EFakturValidationRequest,
 ) (*domain.EFakturValidationResponse, error) {
-	//TODO implement validation
-	_, err := govalidator.ValidateStruct(s)
+	_, err := govalidator.ValidateStruct(req)
 	if err != nil {
 		logat.GetLogger().Error(ctx, "failed to get response from djp", cons.EventLogNameEFakturValidation, err)
 		return nil, err
 	}
 
-	//dummy approval code
+	//TODO remove dummy approval code
 	approvalCode := "527d5baf11452b2a424b8b899e549f99426cc89fe072d84cac822e58bdf8bb56"
 	if req.DocumentEFakturNumber != "" {
 		approvalCode = req.DocumentEFakturNumber
@@ -48,13 +49,7 @@ func (s *Service) EFakturValidation(
 		return nil, err
 	}
 
-	ds, err := compareDJPData(req, respDJP)
-	const (
-		statusValidWDeviations = "validated_with_deviations"
-		statusValidSuccess     = "validated_successfully"
-		statusValidError       = "error"
-	)
-
+	ds, err := compareDJPData(ctx, req, respDJP)
 	status := statusValidSuccess
 	if err != nil {
 		status = statusValidError
@@ -69,12 +64,12 @@ func (s *Service) EFakturValidation(
 		Message:    "something",
 		Deviations: ds,
 		ValidatedData: &domain.EFakturData{
-			SellerTaxID:           req.SellerTaxID,
-			SellerTaxName:         req.SellerTaxName,
-			BuyerTaxID:            req.BuyerTaxID,
-			BuyerTaxName:          req.BuyerTaxName,
-			DocumentEFakturNumber: req.DocumentEFakturNumber,
-			DocumentEFakturDate:   req.DocumentEFakturDate,
+			SellerTaxID:           respDJP.NpwpPenjual,
+			SellerTaxName:         respDJP.NamaPenjual,
+			BuyerTaxID:            respDJP.NpwpLawanTransaksi,
+			BuyerTaxName:          respDJP.NamaLawanTransaksi,
+			DocumentEFakturNumber: respDJP.NomorFaktur,
+			DocumentEFakturDate:   respDJP.TanggalFaktur,
 			TotalTaxBaseValue:     int64(respDJP.JumlahDpp),
 			TotalVATValue:         int64(respDJP.JumlahPpn),
 		},
@@ -83,20 +78,30 @@ func (s *Service) EFakturValidation(
 	return resp, nil
 }
 
-func compareDJPData(req *domain.EFakturValidationRequest, djpData *domain.EFakturDJPResponse) ([]domain.Deviations, error) {
+func compareDJPData(ctx context.Context, req *domain.EFakturValidationRequest, djpData *domain.EFakturDJPResponse) ([]domain.Deviations, error) {
 	ds := make([]domain.Deviations, 0)
 
-	// Helper to reduce repetition
 	compare := func(field, pdfValRaw, apiValRaw string) {
 		pdfVal := normalize(pdfValRaw)
 		apiVal := normalize(apiValRaw)
+
+		switch field {
+		case deviationFieldJumlahDpp, deviationFieldJumlahPpn:
+			pdfVal = normalizeStringIDRFormat(pdfVal)
+			apiVal = normalizeStringIDRFormat(apiVal)
+		case deviationFieldTanggalFaktur:
+			pdfVal = normalizeStringIDNDate(pdfVal)
+		default:
+			pdfVal = normalizeString(pdfVal)
+			apiVal = normalizeString(apiVal)
+		}
 
 		switch {
 		case pdfVal == "" && apiVal != "":
 			ds = append(ds, domain.Deviations{
 				Field:         field,
 				PdfValue:      "",
-				DjpAPIValue:   apiVal,
+				DjpAPIValue:   apiValRaw,
 				DeviationType: "missing_in_pdf",
 			})
 		case pdfVal != "" && apiVal == "":
@@ -110,10 +115,19 @@ func compareDJPData(req *domain.EFakturValidationRequest, djpData *domain.EFaktu
 			ds = append(ds, domain.Deviations{
 				Field:         field,
 				PdfValue:      pdfVal,
-				DjpAPIValue:   apiVal,
+				DjpAPIValue:   apiValRaw,
 				DeviationType: "mismatch",
 			})
 		}
+
+		logat.GetLogger().Info(
+			ctx, "compare function",
+			cons.EventLogNameEFakturValidation, map[string]string{
+				"field":     field,
+				"pdf_value": pdfVal,
+				"api_value": apiVal,
+			},
+		)
 	}
 
 	// Convert int to string for comparison
@@ -125,14 +139,14 @@ func compareDJPData(req *domain.EFakturValidationRequest, djpData *domain.EFaktu
 	}
 
 	// Compare fields
-	compare("sellerTaxID", req.SellerTaxID, djpData.NpwpPenjual)
-	compare("sellerTaxName", req.SellerTaxName, djpData.NamaPenjual)
-	compare("buyerTaxID", req.BuyerTaxID, djpData.NpwpLawanTransaksi)
-	compare("buyerTaxName", req.BuyerTaxName, djpData.NamaLawanTransaksi)
-	compare("documentEFakturNumber", req.DocumentEFakturNumber, djpData.NomorFaktur)
-	compare("documentEFakturDate", req.DocumentEFakturDate, djpData.TanggalFaktur)
-	compare("totalTaxBaseValue", req.TotalTaxBaseValue, intToStr(djpData.JumlahDpp))
-	compare("totalVATValue", req.TotalVATValue, intToStr(djpData.JumlahPpn))
+	compare(deviationFieldNpwpPenjual, req.SellerTaxID, djpData.NpwpPenjual)
+	compare(deviationFieldNamaPenjual, req.SellerTaxName, djpData.NamaPenjual)
+	compare(deviationFieldNpwpPembeli, req.BuyerTaxID, djpData.NpwpLawanTransaksi)
+	compare(deviationFieldNamaPembeli, req.BuyerTaxName, djpData.NamaLawanTransaksi)
+	compare(deviationFieldNomorFaktur, req.DocumentEFakturNumber, djpData.NomorFaktur)
+	compare(deviationFieldTanggalFaktur, req.DocumentEFakturDate, djpData.TanggalFaktur)
+	compare(deviationFieldJumlahDpp, req.TotalTaxBaseValue, intToStr(djpData.JumlahDpp))
+	compare(deviationFieldJumlahPpn, req.TotalVATValue, intToStr(djpData.JumlahPpn))
 
 	return ds, nil
 }
@@ -142,7 +156,7 @@ func normalize(s string) string {
 	if isDateFormat(s) {
 		t, err := time.Parse("02/01/2006", s)
 		if err == nil {
-			return t.Format("2006-01-02") // normalized to YYYY-MM-DD
+			return t.Format("2006-01-02")
 		}
 	}
 	return s
@@ -151,4 +165,37 @@ func normalize(s string) string {
 func isDateFormat(s string) bool {
 	matched, _ := regexp.MatchString(`^\d{2}/\d{2}/\d{4}$`, s)
 	return matched
+}
+
+func normalizeString(s string) string {
+	reg := regexp.MustCompile("[^a-zA-Z0-9]+")
+	s = reg.ReplaceAllString(s, "")
+	return s
+}
+
+func normalizeStringIDRFormat(s string) string {
+	s = strings.ReplaceAll(s, ".", "")
+	s = strings.Replace(s, ",00", "", 1)
+	return s
+}
+
+func normalizeStringIDNDate(s string) string {
+	split := strings.Split(s, " ")
+	if len(split) < 3 {
+		return s
+	}
+
+	date, month, year := split[0], split[1], split[2]
+	dateInt, err := strconv.Atoi(date)
+	if err != nil {
+		return s
+	}
+
+	dateStr := fmt.Sprintf("%d", dateInt)
+	if dateInt < 10 {
+		dateStr = fmt.Sprintf("0%d", dateInt)
+	}
+
+	monthStr := lookupMonthIDN[month]
+	return fmt.Sprintf("%s-%s-%s", year, monthStr, dateStr)
 }

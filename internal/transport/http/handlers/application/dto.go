@@ -1,10 +1,18 @@
 package application
 
+import "mime/multipart"
+
+type Form struct {
+	File *multipart.FileHeader `form:"upload" binding:"required"`
+}
+
 type EFakturRequest struct {
 	SellerTaxID           string `json:"sellerTaxID"`
 	SellerTaxName         string `json:"sellerTaxName"`
+	SellerAddress         string `json:"sellerAddress"`
 	BuyerTaxID            string `json:"buyerTaxID"`
 	BuyerTaxName          string `json:"buyerTaxName"`
+	BuyerAddress          string `json:"buyerAddress"`
 	DocumentEFakturNumber string `json:"documentEFakturNumber"`
 	DocumentEFakturDate   string `json:"documentEFakturDate"`
 	TotalTaxBaseValue     string `json:"totalTaxBaseValue"`

@@ -167,13 +167,11 @@ func (h *Handler) getPDFReader(file *multipart.FileHeader) (*pdf.Reader, error) 
 	}
 	defer f.Close()
 
-	// Read PDF into memory
 	var buf bytes.Buffer
 	if _, err := io.Copy(&buf, f); err != nil {
 		return nil, err
 	}
 
-	// read PDF
 	reader := bytes.NewReader(buf.Bytes())
 	pdfReader, err := pdf.NewReader(reader, int64(reader.Len()))
 	if err != nil {
